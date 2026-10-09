@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  PHANTOM GRID :: Alexa+ Autonomous SRE Hub - AWS App Runner & Cloud Architecture
+  Build, Ship, Shape: Amazon Developer Hackathon 2026
+
+Parameters:
+  ServiceName:
+    Type: String
+    Default: phantom-grid-alexa-sre-hub
+    Description: Name of the App Runner Service
+  Cpu:
+    Type: String
+    Default: '1024'
+    Description: 1 vCPU
+  Memory:
+    Type: String
+    Default: '2048'
+    Description: 2 GB RAM
+
+Resources:
+  AppRunnerInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ServiceName}-instance-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: tasks.apprunner.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonBedrockFullAccess
+
+  AppRunnerService:
+    Type: AWS::AppRunner::Service
+    Properties:
+      ServiceName: !Ref ServiceName
+      SourceConfiguration:
+        AutoDeploymentsEnabled: true
+        AuthenticationConfiguration:
+          AccessRoleArn: !GetAtt AppRunnerInstanceRole.Arn
+        ImageRepository:
+          ImageIdentifier: public.ecr.aws/phantom-grid/alexa-sre-hub:latest
+          ImageRepositoryType: ECR_PUBLIC
+          ImageConfiguration:
+            Port: '8080'
+            RuntimeEnvironmentVariables:
+              - Name: AWS_DEFAULT_REGION
+                Value: us-east-1
+              - Name: HOST
+                Value: 0.0.0.0
+              - Name: PORT
+                Value: '8080'
+      InstanceConfiguration:
+        Cpu: !Ref Cpu
+        Memory: !Ref Memory
+        InstanceRoleArn: !GetAtt AppRunnerInstanceRole.Arn
+      HealthCheckConfiguration:
+        Protocol: HTTP
+        Path: /healthz
+        Interval: 10
+        Timeout: 5
+        HealthyThreshold: 1
+        UnhealthyThreshold: 3
+
+Outputs:
+  ServiceUrl:
+    Description: Public HTTPS URL of the Alexa+ Autonomous SRE Hub
+    Value: !GetAtt AppRunnerService.ServiceUrl
+  ServiceId:
+    Description: App Runner Service ID
+    Value: !GetAtt AppRunnerService.ServiceId
